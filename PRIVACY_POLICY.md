@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Effective date: September 12, 2026**
+**Effective date: September 13, 2026**
 
 ## Overview
 
@@ -75,9 +75,45 @@ Backups and derived indexes associated with deleted data will also be removed wh
 
 Users may request access to, correction of, or deletion of Discord data associated with them.
 
+Retained copies mirror what was posted on Discord, so a correction is made by editing the message on Discord; the daily reconciliation described below applies the edit to the retained copy. The operator does not rewrite retained messages by hand.
+
 Requests can be made by contacting the operator through the contact methods provided by the jetson-bot project or directly through Discord.
 
 Sufficient information may be requested to verify the identity of the person making the request before modifying or deleting data.
+
+## The jlab Message Cache
+
+This section describes one specific store: the message cache kept by jetson-ai-lab-cli (`jlab`), the component that reads, searches and backs up channel history. Where it is more specific than the general sections above, this section applies.
+
+### What is collected
+
+* Only channels of the configured Discord server that the server's `@everyone` role can view. Private and role-gated channels are never fetched, and a channel that later becomes private is purged (see Retention).
+* For each message: the message body, the message id, the channel id, the author's Discord user id, the author's name and display name, whether the author is a bot, the time it was posted, the time it was last edited, the time the copy was stored, and a link back to the message.
+* Attachments, embeds and reactions are not stored in the cache.
+* The bot never posts, reacts, or edits anything; its Discord access is read-only.
+
+### How it is stored
+
+* The cache is a MongoDB database on infrastructure controlled by the operator, dedicated to this component.
+* The message body and the author's name and display name are encrypted before they reach the database, using AES-256-GCM with a key derived from an operator-held secret. The operator's tooling measures that stored content is not readable as plaintext.
+* Ids, timestamps and the message link are stored unencrypted so the cache can be queried and so deletions can run without decrypting anything.
+* Encryption protects data at rest in the database. It does not protect against anyone who holds the key or can read the running process.
+
+### Retention
+
+* Messages are kept only while backup, search and retrieval need them, and never indefinitely: the operator runs a scheduled purge that deletes cached messages, and reports derived from them, older than a stated number of days.
+* The operator runs a reconciliation pass daily. It applies edits made on Discord, removes messages deleted on Discord, and purges all cached content and reports for any channel that is no longer visible to `@everyone`, has been deleted, or is no longer reachable by the bot.
+* A message deleted on Discord can remain in the cache until the next reconciliation pass.
+
+### Deletion
+
+* On request, the operator deletes every cached message by a given author, or every cached message from a given channel, together with every generated report that mentions that author or channel.
+* To make an author's deletion permanent, the operator keeps a one-way keyed hash of that author's Discord user id. The hash cannot be read back into the id; it is used only to refuse re-caching that author's messages in later fetches and reconciliation passes. Messages written by other people that mention the author are other people's content and are not removed by this request.
+* When operation of this component ends, the operator deletes the cache channel by channel, together with its reports.
+
+### Sharing
+
+Cache contents are not shared, sold or transmitted to third parties. Search and read results are shown only to the operator and to the operator's own local tooling.
 
 ## User Content
 
